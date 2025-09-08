@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashboard Usuários - Dark Alaranjado</title>
+  <link rel="stylesheet" href="/static/dashboard.css">
+</head>
+<body>
+  <header class="header">
+    <h1>Gestão de Usuários</h1>
+  </header>
+
+  <main class="dashboard">
+    <!-- Formulário de Criação/Atualização -->
+    <section class="panel left-panel card">
+      <h2>Novo Usuário</h2>
+      <div class="form-group">
+        <input id="id-create" type="number" placeholder="ID" min="1">
+        <input id="name-create" type="text" placeholder="Nome">
+        <button class="btn-action" id="submit-create">Salvar</button>
+      </div>
+    </section>
+
+    <!-- Lista de Usuários -->
+    <section class="panel right-panel" id="users-list">
+      <!-- Usuários serão injetados aqui -->
+    </section>
+  </main>
+
+  <script>
+    let editMode = false;
+    let editId = null;
+
+    async function loadUsers() {
+      try {
+        const res = await fetch("http://localhost:8000/users/all");
+        const data = await res.json();
+        const container = document.getElementById('users-list');
+        container.innerHTML = "";
+
+        if (!data.users || data.users.length === 0) {
+          container.innerHTML = '<p style="color:#ccc;">Nenhum usuário cadastrado.</p>';
+          return;
+        }
+
+        data.users.forEach(user => {
+          const card = document.createElement('div');
+          card.className = 'user-card';
+          card.innerHTML = `
+            <strong>ID:</strong> ${user.id} <br/>
+            <strong>Nome:</strong> ${user.name} <br/><br/>
+            <button class="btn-edit" data-id="${user.id}" data-name="${user.name}">Editar</button>
+            <button class="btn-delete" data-id="${user.id}">Deletar</button>
+          `;
+          container.appendChild(card);
+        });
+
+        // Botões Edit
+        document.querySelectorAll('.btn-edit').forEach(btn => {
+          btn.addEventListener('click', () => {
+            document.getElementById('id-create').value = btn.dataset.id;
+            document.getElementById('name-create').value = btn.dataset.name;
+            editMode = true;
+            editId = parseInt(btn.dataset.id);
+            document.getElementById('submit-create').textContent = "Atualizar";
+          });
+        });
+
+        // Botões Delete
+        document.querySelectorAll('.btn-delete').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            if (!confirm(`Confirma a remoção do usuário ID ${btn.dataset.id}?`)) return;
+            await fetch("http://localhost:8000/users/remove", {
+              method: "DELETE",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ id: parseInt(btn.dataset.id) })
+            });
+            loadUsers();
+          });
+        });
+
+      } catch (err) {
+        console.error(err);
+        document.getElementById('users-list').innerHTML = '<p style="color:#f55;">Erro ao carregar usuários.</p>';
+      }
+    }
+
+    document.getElementById('submit-create').addEventListener('click', async () => {
+      const id = parseInt(document.getElementById('id-create').value.trim());
+      const name = document.getElementById('name-create').value.trim();
+      if (!id || !name) return alert('Informe ID e Nome');
+
+      if(editMode && editId !== null){
+        // Atualizar usuário
+        await fetch("http://localhost:8000/users/update", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: editId, new_name: name })
+        });
+        editMode = false;
+        editId = null;
+        document.getElementById('submit-create').textContent = "Salvar";
+      } else {
+        // Criar usuário
+        await fetch("http://localhost:8000/users/add", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id, name })
+        });
+      }
+
+      loadUsers();
+      document.getElementById('id-create').value = '';
+      document.getElementById('name-create').value = '';
+    });
+
+    loadUsers();
+  </script>
+</body>
+</html>
